@@ -1,0 +1,16 @@
+CREATE TABLE cotacoes (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(255) NOT NULL,
+    status VARCHAR(1) DEFAULT 'A',
+    data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE itens_cotacao (
+    id SERIAL PRIMARY KEY,
+    cotacao_id INT NOT NULL REFERENCES cotacoes(id) ON DELETE CASCADE,
+    ean VARCHAR(20) NOT NULL,
+    familia VARCHAR(10),
+    nome_produto VARCHAR(255),
+    preco NUMERIC(10,2),
+    promocional  VARCHAR(1) DEFAULT 'N',
+);
