@@ -12,6 +12,7 @@ import os
 load_dotenv()
 
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # libera só seu frontend
@@ -245,3 +246,7 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/versao")
+def versao():
+    return {"versao": "1.0.0", "mensagem": "API atualizada"}
