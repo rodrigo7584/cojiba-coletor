@@ -249,4 +249,5 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.0", "mensagem": "API atualizada"}
+    return {"versao": "1.0.0", "mensagem": "API atualizadas"}
+ 
