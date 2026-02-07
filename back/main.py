@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Query
 import psycopg2
 import pandas as pd
@@ -7,8 +8,10 @@ import io
 import tempfile
 from dotenv import load_dotenv 
 import os 
-from fastapi.middleware.cors import CORSMiddleware
 
+load_dotenv()
+
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],  # libera só seu frontend
@@ -16,10 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-load_dotenv()
-
-app = FastAPI()
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
