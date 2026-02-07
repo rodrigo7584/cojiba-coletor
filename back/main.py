@@ -7,6 +7,15 @@ import io
 import tempfile
 from dotenv import load_dotenv 
 import os 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # libera só seu frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 load_dotenv()
 
@@ -237,10 +246,3 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
-# curl -X POST "http://localhost:8000/cotacoes" \
-#   -F "nome=Minha Cotacao Teste" \
-#   -F "arquivo=@meuarquivo.csv"
