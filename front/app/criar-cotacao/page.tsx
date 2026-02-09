@@ -1,9 +1,10 @@
 "use client"
+import { toast } from "sonner"
 import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CircleArrowLeft, CircleArrowLeftIcon, CirclePlus, FileSpreadsheetIcon } from "lucide-react";
+import { CircleArrowLeftIcon, CirclePlus, FileSpreadsheetIcon } from "lucide-react";
 import Link from "next/link";
 
 export default function Criar() {
@@ -29,11 +30,14 @@ export default function Criar() {
     },
     onSuccess: (data) => {
       console.log("Cotação criada:", data);
-      alert("Cotação criada com sucesso!");
+      toast.success("Cotação criada com sucesso!", { position: "top-center" })
+      setNomeCotacao("")
+      setFileName(null)
+      inputRef.current.value = null
     },
     onError: (error) => {
       console.error(error);
-      alert("Erro ao criar cotação");
+      toast.error(error.message || "Erro ao criar cotação", { position: "top-center" })
     },
   });
 
