@@ -58,7 +58,7 @@ def info_cotacao(cotacao_id: int):
         cotacao = cur.fetchone()
         cur.close()
         conn.close()
-        return [{"id": cotacao[0], "nome": cotacao[1], "status": cotacao[2], "data_criacao": cotacao[3]}]
+        return {"id": cotacao[0], "nome": cotacao[1], "status": cotacao[2], "data_criacao": cotacao[3]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -263,5 +263,5 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.1", "mensagem": "API atualizadas"}
+    return {"versao": "1.0.2", "mensagem": "API atualizadas"}
  
