@@ -48,6 +48,20 @@ def listar_cotacoes():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/cotacao/{cotacao_id}")
+def info_cotacao(cotacao_id: int):
+    """Lista dados da cotação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, status, data_criacao FROM cotacoes WHERE id = %s",(cotacao_id,))
+        cotacao = cur.fetchone()
+        cur.close()
+        conn.close()
+        return [{"id": cotacao[0], "nome": cotacao[1], "status": cotacao[2], "data_criacao": cotacao[3]}]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/cotacoes")
 async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
     try:
