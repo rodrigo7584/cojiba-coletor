@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/dist/client/link";
 import { CircleArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 
 export default function Grupo() {
   const queryClient = useQueryClient();
@@ -33,11 +34,12 @@ export default function Grupo() {
       if (!res.ok) throw new Error("Erro ao enviar preço");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       // Atualiza os itens da cotação para refletir o novo preço
       queryClient.invalidateQueries({
         queryKey: ["cotacao-itens", cotacao_id, offset, limit],
       });
+      setPrecos((prev) => ({ ...prev, [variables.familia]: "" }));
     },
   });
 
@@ -58,7 +60,7 @@ export default function Grupo() {
   return (
      <main className="p-5">
       <Button asChild size="icon">
-        <Link href="/">
+        <Link href={`/${cotacao_id}/cotacao`}>
           <CircleArrowLeftIcon/>
         </Link>
       </Button>
@@ -69,7 +71,7 @@ export default function Grupo() {
           <CarouselContent>
             {data?.map((item, index) => (
               <CarouselItem key={index}>
-                <div className="p-1">
+                <div className="p-1 flex flex-col justify-center">
                   <Card>
                     <CardContent className="flex flex-col items-center justify-center p-2 h-62">
                       <span className="text-xs font-semibold text-center">{item.nome_produto.split(":")[1]}</span>
@@ -86,15 +88,35 @@ export default function Grupo() {
                       )}
                     </CardContent>
                   </Card>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <Input
+                    type="text"
+                    inputMode="numeric"
                     value={precos[item.familia] || ""}
-                    onChange={(e) =>
-                      setPrecos((prev) => ({ ...prev, [item.familia]: e.target.value }))
-                    }
-                    className="w-full p-2 text-black rounded mt-2"
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, ""); // só números
+                      if (val === "") {
+                        setPrecos((prev) => ({ ...prev, [item.familia]: "" }));
+                        return;
+                      }
+
+                      // transforma em centavos
+                      let num = parseInt(val, 10);
+
+                      // divide por 100 para colocar o ponto
+                      let formatted = (num / 100).toFixed(2);
+
+                      setPrecos((prev) => ({ ...prev, [item.familia]: formatted }));
+                    }}
+                    onKeyDown={(e) => { 
+                      if (e.key === "Enter") { 
+                        enviarPrecoMutation.mutate({ 
+                          familia: item.familia, preco: parseFloat(precos[item.familia]), }); 
+                        } 
+                      }}
+                    className="w-full p-2 rounded mt-2 font-bold"
                   />
+
+
                   <Button
                     className="mt-2"
                     onClick={() =>
