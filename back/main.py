@@ -2,6 +2,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Query
+from fastapi import HTTPException 
+import math
 import psycopg2
 import pandas as pd
 import io
@@ -160,25 +162,39 @@ def contar_itens_cotacao(cotacao_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+from fastapi import HTTPException
+import math
+
 @app.put("/cotacoes/{cotacao_id}/itens/preco")
-def atualizar_preco_item(cotacao_id: int, familia: int, preco:float, promocional: str = "N"):
+def atualizar_preco_item(cotacao_id: int, familia: int, preco: float, promocional: str = "N"):
     """Atualiza preço da cotação """
     try:
+        # Validação do preço
+        if math.isnan(preco) or math.isinf(preco) or preco < 0:
+            raise HTTPException(status_code=400, detail="Preço inválido")
+
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute( "UPDATE itens_cotacao SET preco = %s, promocional = %s WHERE cotacao_id = %s AND familia = %s", (preco, promocional, cotacao_id, familia) )
+        cur.execute(
+            "UPDATE itens_cotacao SET preco = %s, promocional = %s WHERE cotacao_id = %s AND familia = %s",
+            (preco, promocional, cotacao_id, familia)
+        )
         conn.commit()
         cur.close()
         conn.close()
 
-        return { 
-            "message": f"Preço do item {familia} atualizado com sucesso", 
+        return {
+            "message": f"Preço do item {familia} atualizado com sucesso",
             "cotacao": cotacao_id,
-            "preco": f"{preco:.2f}", 
-            "promocional": promocional 
+            "preco": f"{preco:.2f}",
+            "promocional": promocional
         }
+    except HTTPException:
+        # Repassa o erro de validação
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/cotacoes/{cotacao_id}/familia/{familia_id}")
 def detalhes_cotacao(cotacao_id: int, familia_id: str):
@@ -257,5 +273,5 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.4", "mensagem": "API atualizadas"}
+    return {"versao": "1.0.5", "mensagem": "API atualizadas"}
  
