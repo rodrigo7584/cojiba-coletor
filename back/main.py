@@ -79,7 +79,7 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
         df['Código Família'] = df['Código Família'].fillna("").astype(str).str.replace('.0','', regex=False)
 
         # Ajuste do filtro (>=3 dígitos, por exemplo)
-        df = df[df['Código EAN/Interno *'].str.len() >= 7]
+        df = df[df['Código EAN/Interno *'].str.len().isin([8, 13])]
         df = df.drop_duplicates(subset=['Código Família'], keep='first')
 
         # Inserção no banco
@@ -134,13 +134,7 @@ def listar_itens_cotacao(
     try:
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("""
-            SELECT id, ean, familia, nome_produto, preco, promocional
-            FROM itens_cotacao
-            WHERE cotacao_id = %s
-            ORDER BY id
-            OFFSET %s LIMIT %s
-        """, (cotacao_id, offset, limit))
+        cur.execute("""SELECT id, ean, familia, nome_produto, preco, promocional FROM itens_cotacao WHERE cotacao_id = %s ORDER BY id OFFSET %s LIMIT %s""", (cotacao_id, offset, limit))
         itens = cur.fetchall()
         cur.close()
         conn.close()
@@ -263,5 +257,5 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.2", "mensagem": "API atualizadas"}
+    return {"versao": "1.0.3", "mensagem": "API atualizadas"}
  
