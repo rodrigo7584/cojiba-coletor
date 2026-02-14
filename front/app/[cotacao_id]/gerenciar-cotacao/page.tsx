@@ -160,7 +160,7 @@ export default function GerenciarCotacao() {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
+                    <AlertDialogAction 
                       onClick={() => deletarMutation.mutate()}
                       disabled={deletarMutation.isLoading}
                     >

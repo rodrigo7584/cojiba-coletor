@@ -74,6 +74,7 @@ export default function Grupo() {
                 <div className="p-1 flex flex-col justify-center">
                   <Card>
                     <CardContent className="flex flex-col items-center justify-center p-2 h-62">
+                      <span className="text-xs font-semibold text-center">{item.nome_produto.split(":")[0]}</span>
                       <span className="text-xs font-semibold text-center">{item.nome_produto.split(":")[1]}</span>
                       <span>{item.ean}</span>
                       <span>{item.familia}</span>

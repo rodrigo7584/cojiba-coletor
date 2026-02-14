@@ -10,6 +10,7 @@ import io
 import tempfile
 from dotenv import load_dotenv 
 import os 
+import oracledb
 
 load_dotenv()
 
@@ -33,6 +34,13 @@ DB_CONFIG = {
 
 def get_connection():
     return psycopg2.connect(**DB_CONFIG)
+
+def get_oracle_connection(): 
+    return oracledb.connect( 
+        user=os.getenv("ORA_USER"), 
+        password=os.getenv("ORA_PASSWORD"), 
+        dsn=os.getenv("ORA_DSN") # exemplo: "host:porta/servico" 
+    )
 
 # ---------------- ENDPOINTS ----------------
 
@@ -64,41 +72,122 @@ def info_cotacao(cotacao_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# @app.post("/cotacoes")
+# async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
+#     try:
+#         contents = await arquivo.read()
+#         df = pd.read_csv(io.BytesIO(contents), sep=";", encoding="latin1")
+
+#         # Garantir colunas
+#         required_cols = ['Código EAN/Interno *', 'Código Família', 'Produto : Família']
+#         for col in required_cols:
+#             if col not in df.columns:
+#                 raise HTTPException(status_code=400, detail=f"Coluna {col} não encontrada no CSV")
+
+#         # Limpeza
+#         df['Código EAN/Interno *'] = df['Código EAN/Interno *'].fillna("").astype(str).str.replace('.0','', regex=False)
+#         df['Código Família'] = df['Código Família'].fillna("").astype(str).str.replace('.0','', regex=False)
+
+#         # Ajuste do filtro (>=3 dígitos, por exemplo)
+#         df = df[df['Código EAN/Interno *'].str.len().isin([8, 13])]
+#         df = df.drop_duplicates(subset=['Código Família'], keep='first')
+
+#         # Inserção no banco
+#         conn = get_connection()
+#         cur = conn.cursor()
+#         cur.execute("INSERT INTO cotacoes (nome, status) VALUES (%s, %s) RETURNING id", (nome, "A"))
+#         cotacao_id = cur.fetchone()[0]
+
+#         for _, row in df.iterrows():
+#             cur.execute("""
+#                 INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
+#                 VALUES (%s, %s, %s, %s, %s, %s)
+#             """, (
+#                 cotacao_id,
+#                 row['Código EAN/Interno *'],
+#                 row['Código Família'],
+#                 row['Produto : Família'],
+#                 0,
+#                 'N'
+#             ))
+
+#         conn.commit()
+#         cur.close()
+#         conn.close()
+
+#         return {"message": "Cotação e itens salvos no banco com sucesso!", "id": cotacao_id}
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/cotacoes")
-async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
+async def criar_cotacoes(nome: str = Form(...), arquivo: UploadFile = File(...)):
     try:
         contents = await arquivo.read()
-        df = pd.read_csv(io.BytesIO(contents), sep=";", encoding="latin1")
+        df = pd.read_csv(io.BytesIO(contents), sep=";", header=None, encoding="latin1")
 
-        # Garantir colunas
-        required_cols = ['Código EAN/Interno *', 'Código Família', 'Produto : Família']
-        for col in required_cols:
-            if col not in df.columns:
-                raise HTTPException(status_code=400, detail=f"Coluna {col} não encontrada no CSV")
+        familias = df[0].astype(str).tolist()
+        if familias and not familias[0].isdigit():
+            familias = familias[1:]
 
-        # Limpeza
-        df['Código EAN/Interno *'] = df['Código EAN/Interno *'].fillna("").astype(str).str.replace('.0','', regex=False)
-        df['Código Família'] = df['Código Família'].fillna("").astype(str).str.replace('.0','', regex=False)
+        familias = [f.strip() for f in familias if f.strip()]
+        familias = list(set(familias))
 
-        # Ajuste do filtro (>=3 dígitos, por exemplo)
-        df = df[df['Código EAN/Interno *'].str.len().isin([8, 13])]
-        df = df.drop_duplicates(subset=['Código Família'], keep='first')
+        # Conexão Oracle 
+        conn_ora = get_oracle_connection() 
+        cur_ora = conn_ora.cursor()
 
-        # Inserção no banco
+        resultado = []
+
+        for familia in familias:
+            cur_ora.execute("""
+                SELECT p.codacesso AS EAN,
+                       p.seqfamilia,
+                       d.desccompleta || ' : ' || f.familia AS nome
+                FROM consinco.map_prodcodigo p
+                INNER JOIN consinco.mrl_prodempseg s
+                  ON p.seqproduto = s.seqproduto
+                 AND p.qtdembalagem = s.qtdembalagem
+                INNER JOIN consinco.map_produto d
+                  ON p.seqproduto = d.seqproduto
+                 AND p.seqfamilia = d.seqfamilia
+                INNER JOIN consinco.map_familia f
+                  ON p.seqfamilia = f.seqfamilia
+                WHERE p.seqfamilia = :fam
+                  AND p.tipcodigo = 'E'
+                  AND p.indutilvenda = 'S'
+                  AND p.qtdembalagem = 1
+                  AND s.nroempresa = 1
+                  AND s.nrosegmento = 1
+                  AND s.statusvenda = 'A'
+                  AND ROWNUM = 1
+            """, {"fam": familia})
+            row = cur_ora.fetchone()
+            if row and row[0]:
+                resultado.append({
+                    "ean": row[0],
+                    "familia": row[1],
+                    "nome": row[2]
+                })
+
+        cur_ora.close() 
+        conn_ora.close()
+
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("INSERT INTO cotacoes (nome, status) VALUES (%s, %s) RETURNING id", (nome, "A"))
         cotacao_id = cur.fetchone()[0]
 
-        for _, row in df.iterrows():
+        for item in resultado:
             cur.execute("""
                 INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
                 cotacao_id,
-                row['Código EAN/Interno *'],
-                row['Código Família'],
-                row['Produto : Família'],
+                item["ean"],
+                item["familia"],
+                item["nome"],
                 0,
                 'N'
             ))
@@ -107,7 +196,12 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
         cur.close()
         conn.close()
 
-        return {"message": "Cotação e itens salvos no banco com sucesso!", "id": cotacao_id}
+        return {
+            "cotacao": cotacao_id,
+            "message": "Lista de famílias processada com sucesso",
+            "dados": resultado,
+            "total": len(resultado)
+        }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
