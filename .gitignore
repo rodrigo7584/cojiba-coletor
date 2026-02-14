@@ -1,0 +1,4 @@
+back/learn
+back/__pycache__
+back/.env*
+back/.env
