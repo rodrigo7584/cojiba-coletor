@@ -49,16 +49,20 @@ export default function Home() {
                 <TableCell className="w-25">{cotacao.nome}</TableCell>
                 <TableCell className="w-25 text-center">{new Date(cotacao.data_criacao).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit"})}</TableCell>
                 <TableCell className="flex flex-row justify-center gap-2">
-                  <Button asChild size="icon">
+                  {cotacao?.status === "F" && (
+                  <Button asChild>
                     <Link href={`/${cotacao.id}/gerenciar-cotacao`}>
-                      <FileCogIcon/>
+                      <FileCogIcon/> Gerenciar
                     </Link>
                   </Button>
-                  <Button asChild size="icon">
+                  )}
+                  {cotacao?.status === "A" && (
+                  <Button asChild>
                     <Link href={`/${cotacao.id}/cotacao`}>
-                      <FileUpIcon/>
+                      <FileUpIcon/> Cotar
                     </Link>
                   </Button>
+                  )}
                 </TableCell>
               </TableRow>
               ))}            

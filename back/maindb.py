@@ -9,9 +9,8 @@ import pandas as pd
 import io
 import tempfile
 from dotenv import load_dotenv 
-import os
-import requests
-import time
+import os 
+import oracledb
 
 load_dotenv()
 
@@ -36,146 +35,14 @@ DB_CONFIG = {
 def get_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-class APIClient:
-    def __init__(self):
-        # Credenciais vindas de variáveis de ambiente
-        self.company = os.getenv("API_COMPANY")
-        self.username = os.getenv("API_USERNAME")
-        self.password = os.getenv("API_PASSWORD")
+def get_oracle_connection(): 
+    return oracledb.connect( 
+        user=os.getenv("ORA_USER"), 
+        password=os.getenv("ORA_PASSWORD"), 
+        dsn=os.getenv("ORA_DSN") # exemplo: "host:porta/servico" 
+    )
 
-        # Endpoints
-        self.login_url = "https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/api/v1/auth/login"
-        self.refresh_url = "https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/api/v1/auth/refresh-token"
-
-        # Tokens
-        self.access_token = None
-        self.refresh_token = None
-        self.token_type = None
-        self.expires_at = None  # timestamp de expiração
-
-    def login(self):
-        
-        payload = {
-            "company": self.company,
-            "username": self.username,
-            "password": self.password
-        }
-        
-        response = requests.post(self.login_url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-        self.access_token = data["access_token"]
-        self.refresh_token = data["refresh_token"]
-        self.token_type = data["token_type"]
-        # Guardar o momento em que expira
-        self.expires_at = time.time() + data["expires_in"]
-
-    def refresh(self):
-        payload = {
-            "refresh_token": self.refresh_token,
-            "grant_type": "refresh_token"
-        }
-        response = requests.post(self.refresh_url, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-        self.access_token = data["access_token"]
-        # Algumas APIs devolvem um novo refresh_token, outras não
-        self.refresh_token = data.get("refresh_token", self.refresh_token)
-        self.token_type = data["token_type"]
-        self.expires_at = time.time() + data["expires_in"]
-
-    def get_token(self):
-        # Se não tem token ou já expirou, renova
-        if not self.access_token:
-            self.login()
-        elif time.time() >= self.expires_at:
-            self.refresh()
-        return f"{self.token_type} {self.access_token}"
-
-    def request(self, method, url, **kwargs):
-        headers = kwargs.pop("headers", {})
-        headers["Authorization"] = self.get_token()
-        return requests.request(method, url, headers=headers, **kwargs)
-client = APIClient()
-
-def buscar_ean_por_familia(client, seq_familia):
-    url = f"https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/CadastrosEstruturaisAPI/api/v1/Produto/produto-codigo?SeqFamilia={seq_familia}&TipoCodigo=E&QtdEmbalagem=1&PageSize=100"
-    response = client.request("GET", url)
-    data = response.json()
-
-    # Se não retornou nada, exclui
-    if not data.get("items"):
-        return None
-
-    # Percorre os itens e procura o primeiro com indUtilVenda = "S"
-    for item in data["items"]:
-        if item.get("indUtilVenda") == "S":
-            return item.get("codigoAcesso")
-
-    # Se nenhum item válido encontrado, exclui
-    return None
-
-@app.post("/cotacoes")
-async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
-    try:
-        contents = await arquivo.read()
-        df = pd.read_csv(io.BytesIO(contents), sep=";", encoding="latin1", header=None)
-
-        # Se a primeira célula da primeira coluna for texto, removemos a linha (cabeçalho)
-        if not df.empty and isinstance(df.iloc[0, 0], str):
-            # Se for texto e não número, consideramos cabeçalho
-            if not df.iloc[0, 0].isdigit():
-                df = df.drop(index=0).reset_index(drop=True)
-
-        # Renomear colunas para padronizar
-        df.columns = ["CodigoFamilia", "ProdutoFamilia"]
-
-        # Limpeza básica
-        df["CodigoFamilia"] = df["CodigoFamilia"].fillna("").astype(str).str.replace(".0", "", regex=False)
-        df["ProdutoFamilia"] = df["ProdutoFamilia"].fillna("").astype(str)
-
-        # Remover duplicados por família
-        df = df.drop_duplicates(subset=["CodigoFamilia"], keep="first")
-
-        # Inserção no banco
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("INSERT INTO cotacoes (nome, status) VALUES (%s, %s) RETURNING id", (nome, "A"))
-        cotacao_id = cur.fetchone()[0]
-
-        for _, row in df.iterrows():
-            codigo_familia = row["CodigoFamilia"]
-            produto_familia = row["ProdutoFamilia"]
-
-            ean = buscar_ean_por_familia(client, codigo_familia)
-
-            if ean:  # só insere se achou EAN válido
-                cur.execute("""
-                    INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    cotacao_id,
-                    ean,
-                    codigo_familia,
-                    produto_familia,
-                    0,
-                    "N"
-                ))
-            else:
-                print(f"Família {codigo_familia} removida (sem EAN válido)")
-
-
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        return {"message": "Cotação e itens salvos no banco com sucesso!", "id": cotacao_id}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
+# ---------------- ENDPOINTS ----------------
 
 @app.get("/cotacoes")
 def listar_cotacoes():
@@ -205,6 +72,91 @@ def info_cotacao(cotacao_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/cotacoes")
+async def criar_cotacoes(nome: str = Form(...), arquivo: UploadFile = File(...)):
+    try:
+        contents = await arquivo.read()
+        df = pd.read_csv(io.BytesIO(contents), sep=";", header=None, encoding="latin1")
+
+        familias = df[0].astype(str).tolist()
+        if familias and not familias[0].isdigit():
+            familias = familias[1:]
+
+        familias = [f.strip() for f in familias if f.strip()]
+        familias = list(set(familias))
+
+        # Conexão Oracle 
+        conn_ora = get_oracle_connection() 
+        cur_ora = conn_ora.cursor()
+
+        resultado = []
+
+        for familia in familias:
+            cur_ora.execute("""
+                SELECT p.codacesso AS EAN,
+                       p.seqfamilia,
+                       d.desccompleta || ' : ' || f.familia AS nome
+                FROM consinco.map_prodcodigo p
+                INNER JOIN consinco.mrl_prodempseg s
+                  ON p.seqproduto = s.seqproduto
+                 AND p.qtdembalagem = s.qtdembalagem
+                INNER JOIN consinco.map_produto d
+                  ON p.seqproduto = d.seqproduto
+                 AND p.seqfamilia = d.seqfamilia
+                INNER JOIN consinco.map_familia f
+                  ON p.seqfamilia = f.seqfamilia
+                WHERE p.seqfamilia = :fam
+                  AND p.tipcodigo = 'E'
+                  AND p.indutilvenda = 'S'
+                  AND p.qtdembalagem = 1
+                  AND s.nroempresa = 1
+                  AND s.nrosegmento = 1
+                  AND s.statusvenda = 'A'
+                  AND ROWNUM = 1
+            """, {"fam": familia})
+            row = cur_ora.fetchone()
+            if row and row[0]:
+                resultado.append({
+                    "ean": row[0],
+                    "familia": row[1],
+                    "nome": row[2]
+                })
+
+        cur_ora.close() 
+        conn_ora.close()
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO cotacoes (nome, status) VALUES (%s, %s) RETURNING id", (nome, "A"))
+        cotacao_id = cur.fetchone()[0]
+
+        for item in resultado:
+            cur.execute("""
+                INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                cotacao_id,
+                item["ean"],
+                item["familia"],
+                item["nome"],
+                0,
+                'N'
+            ))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {
+            "cotacao": cotacao_id,
+            "message": "Lista de famílias processada com sucesso",
+            "dados": resultado,
+            "total": len(resultado)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/cotacoes/finalizadas")
 def listar_cotacoes_finalizadas():
@@ -367,4 +319,5 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.6", "mensagem": "API atualizadas"}
+    return {"versao": "1.0.5", "mensagem": "API atualizadas"}
+ 

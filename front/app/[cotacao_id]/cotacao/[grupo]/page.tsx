@@ -64,16 +64,16 @@ export default function Grupo() {
           <CircleArrowLeftIcon/>
         </Link>
       </Button>
-      <div className="flex flex-col items-center p-5 gap-5 text-white">
+      <div className="flex flex-col items-center gap-5 text-white">
         <h1 className="text-lg font-bold">Itens da Cotação {cotacao_id}</h1>
         <h2>Grupo: {start}-{end}</h2>
-        <Carousel className="w-full max-w-60 sm:max-w-xs">
+        <Carousel className="w-full max-w-95">
           <CarouselContent>
             {data?.map((item, index) => (
               <CarouselItem key={index}>
                 <div className="p-1 flex flex-col justify-center">
                   <Card>
-                    <CardContent className="flex flex-col items-center justify-center p-2 h-62">
+                    <CardContent className="flex flex-col items-center justify-center p-2 w-full h-62">
                       <span className="text-xs font-semibold text-center">{item.nome_produto.split(":")[0]}</span>
                       <span className="text-xs font-semibold text-center">{item.nome_produto.split(":")[1]}</span>
                       <span>{item.ean}</span>
@@ -81,9 +81,9 @@ export default function Grupo() {
                       <span>{item.preco}</span>
                       <span className="text-xs">tamanho ean:{item.ean.length}</span>
                       {item.ean.length === 13 ? (
-                        <Barcode value={item.ean} format="EAN13" />
+                        <Barcode value={item.ean} format="EAN13" width={4}/>
                       ) : item.ean.length === 8 ? (
-                        <Barcode value={item.ean} format="EAN8" />
+                        <Barcode value={item.ean} format="EAN8"  width={4}/>
                       ) : (
                         <h1>EAN inválido</h1>
                       )}
@@ -135,8 +135,8 @@ export default function Grupo() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselPrevious />
-          <CarouselNext />
+          {/* <CarouselPrevious />
+          <CarouselNext /> */}
         </Carousel>
       </div>
     </main>
