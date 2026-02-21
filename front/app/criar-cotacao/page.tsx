@@ -8,11 +8,11 @@ import { CircleArrowLeftIcon, CirclePlus, FileSpreadsheetIcon } from "lucide-rea
 import Link from "next/link";
 
 export default function Criar() {
-  const [fileName, setFileName] = useState(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const [nomeCotacao, setNomeCotacao] = useState("");
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const mutation = useMutation({
+  const mutation = useMutation<any,Error,{arquivo: File; nome: string}>({
     mutationFn: async ({ arquivo, nome }) => {
       const formData = new FormData();
       formData.append("arquivo", arquivo); // campo esperado no FastAPI
@@ -33,7 +33,9 @@ export default function Criar() {
       toast.success("Cotação criada com sucesso!", { position: "top-center" })
       setNomeCotacao("")
       setFileName(null)
-      inputRef.current.value = null
+      if (inputRef.current) { 
+        inputRef.current.value = ""; 
+      }
     },
     onError: (error) => {
       console.error(error);
@@ -41,8 +43,8 @@ export default function Criar() {
     },
   });
 
-  const handleFileChange = (event) => {
-    const file = event.target.files[0];
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       setFileName(file.name);
     } else {
@@ -51,11 +53,13 @@ export default function Criar() {
   };
 
   const handleButtonClick = () => {
-    inputRef.current.click();
+    if (inputRef.current) {
+      inputRef.current.click();
+    }
   };
 
   const handleSubmit = () => {
-    if (!inputRef.current.files[0] || !nomeCotacao) {
+    if (!inputRef.current || !inputRef.current.files?.[0] || !nomeCotacao) {
       alert("Selecione um arquivo CSV e digite um nome");
       return;
     }
@@ -93,8 +97,8 @@ export default function Criar() {
             <FileSpreadsheetIcon />
             {fileName ? fileName : "Selecione um CSV"}
           </Button>
-          <Button className="w-50" onClick={handleSubmit} disabled={mutation.isLoading}>
-            <CirclePlus /> {mutation.isLoading ? "Enviando..." : "Criar nova cotação"}
+          <Button className="w-50" onClick={handleSubmit} disabled={mutation.isPending}>
+            <CirclePlus /> {mutation.isPending ? "Enviando..." : "Criar nova cotação"}
           </Button>
         </div>
       </main>

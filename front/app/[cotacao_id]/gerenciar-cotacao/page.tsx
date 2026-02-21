@@ -20,7 +20,7 @@ export default function GerenciarCotacao() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error } = useQuery<Cotacao>({
+  const { data, isPending, error } = useQuery<Cotacao>({
     queryKey: ["cotacao", cotacao_id],
     queryFn: async () => {
       const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacao/${cotacao_id}`);
@@ -93,7 +93,7 @@ export default function GerenciarCotacao() {
     },
   });
 
-  if (isLoading) return <p className="text-white">Carregando...</p>;
+  if (isPending) return <p className="text-white">Carregando...</p>;
   if (error) return <p className="text-red-500">Erro ao carregar cotação</p>;
 
   return (
@@ -136,9 +136,9 @@ export default function GerenciarCotacao() {
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => finalizarMutation.mutate()}
-                      disabled={finalizarMutation.isLoading}
+                      disabled={finalizarMutation.isPending}
                     >
-                      {finalizarMutation.isLoading ? "Finalizando..." : "Confirmar"}
+                      {finalizarMutation.isPending ? "Finalizando..." : "Confirmar"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -162,9 +162,9 @@ export default function GerenciarCotacao() {
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction 
                       onClick={() => deletarMutation.mutate()}
-                      disabled={deletarMutation.isLoading}
+                      disabled={deletarMutation.isPending}
                     >
-                      {deletarMutation.isLoading ? "Deletando..." : "Confirmar"}
+                      {deletarMutation.isPending ? "Deletando..." : "Confirmar"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -173,10 +173,10 @@ export default function GerenciarCotacao() {
             {data?.status === "F" &&(
               <Button
                 onClick={() => gerarMutation.mutate()}
-                disabled={gerarMutation.isLoading}
+                disabled={gerarMutation.isPending}
               >
                 <FileDownIcon/>
-                {gerarMutation.isLoading ? "Gerando..." : "Gerar Arquivo"}
+                {gerarMutation.isPending ? "Gerando..." : "Gerar Arquivo"}
               </Button>
             )}
           </div>

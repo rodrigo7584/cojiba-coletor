@@ -15,7 +15,7 @@ export default function Cotacao() {
   const { cotacao_id } = useParams();
 
   // Query 1: total de itens
-  const { data: totalData, isLoading: loadingTotal, error: errorTotal } = useQuery<{ total_itens: number }>({
+  const { data: totalData, isPending: loadingTotal, error: errorTotal } = useQuery<{ total_itens: number }>({
     queryKey: ["cotacao-total-itens", cotacao_id],
     queryFn: async () => {
       const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}/itens/total`);
@@ -25,7 +25,7 @@ export default function Cotacao() {
   });
 
   // Query 2: detalhes da cotação
-  const { data: detalhesData, isLoading: loadingDetalhes, error: errorDetalhes } = useQuery<CotacaoDetalhes>({
+  const { data: detalhesData, isPending: loadingDetalhes, error: errorDetalhes } = useQuery<CotacaoDetalhes>({
     queryKey: ["cotacao-detalhes", cotacao_id],
     queryFn: async () => {
       const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacao/${cotacao_id}`);
