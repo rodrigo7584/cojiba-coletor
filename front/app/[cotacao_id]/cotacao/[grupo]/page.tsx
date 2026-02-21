@@ -126,7 +126,7 @@ export default function Grupo() {
                   <Input
                     type="text"
                     inputMode="numeric"
-                    ref={(el) => (inputRefs.current[index] = el)}
+                    ref={(el) => { inputRefs.current[index] = el; }}
                     value={precos[item.familia] || ""}
                     onChange={(e) => {
                       let val = e.target.value.replace(/\D/g, ""); // só números
