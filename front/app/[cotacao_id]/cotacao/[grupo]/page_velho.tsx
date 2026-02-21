@@ -11,7 +11,7 @@ import Barcode from "react-barcode";
 import { Button } from "@/components/ui/button";
 import Link from "next/dist/client/link";
 import { CircleArrowLeftIcon } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { redirect } from "next/navigation";
 
@@ -29,36 +29,10 @@ export default function Grupo() {
   if (!grupo || typeof grupo !== "string") { redirect("/"); }
   const [start, end] = grupo.split("-").map(Number); // ex: "51-100" → [51, 100]
   const [precos, setPrecos] = useState<{ [familia: string]: string }>({});
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [api, setApi] = useState<any>(null); 
-  const [activeIndex, setActiveIndex] = useState(0);
+  
   const offset = start - 1; // começa no índice 0
   const limit = end - start + 1; // quantidade de itens
 
-// escuta o carrossel e atualiza activeIndex
-  useEffect(() => {
-    if (!api) return;
-
-    const handler = () => {
-      setActiveIndex(api.selectedScrollSnap());
-    };
-
-    api.on("select", handler);
-    handler(); // inicializa no primeiro slide
-
-    return () => {
-      api.off("select", handler);
-    };
-  }, [api]);
-
-  // foca no input quando activeIndex muda
-  useEffect(() => {
-    const input = inputRefs.current[activeIndex];
-    if (input) {
-      input.focus({ preventScroll: true });
-    }
-  }, [activeIndex]);
-  
   const enviarPrecoMutation = useMutation({
     mutationFn: async ({ familia, preco }: { familia: string; preco: number }) => {
       const res = await fetch(
@@ -101,7 +75,7 @@ export default function Grupo() {
       <div className="flex flex-col items-center gap-5 text-white">
         <h1 className="text-lg font-bold">Itens da Cotação {cotacao_id}</h1>
         <h2>Grupo: {start}-{end}</h2>
-        <Carousel className="w-full max-w-95"  setApi={setApi}>
+        <Carousel className="w-full max-w-95">
           <CarouselContent>
             {data?.map((item, index) => (
               <CarouselItem key={index}>
@@ -126,7 +100,6 @@ export default function Grupo() {
                   <Input
                     type="text"
                     inputMode="numeric"
-                    ref={(el) => (inputRefs.current[index] = el)}
                     value={precos[item.familia] || ""}
                     onChange={(e) => {
                       let val = e.target.value.replace(/\D/g, ""); // só números
