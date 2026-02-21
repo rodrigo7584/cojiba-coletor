@@ -12,7 +12,7 @@ type Cotacao = {
 }
 
 async function fetchCotacoes():Promise<Cotacao[]> {
-  const res = await fetch("http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/")
+  const res = await fetch("https://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/")
   if(!res.ok) throw new Error("Erro ao buscar cotações")
   return res.json()
 }
