@@ -12,7 +12,7 @@ type Cotacao = {
 }
 
 async function fetchCotacoes():Promise<Cotacao[]> {
-  const res = await fetch("https://servicos-coletorapi.eu8tjo.easypanel.host/cotacoes/")
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacoes/`)
   if(!res.ok) throw new Error("Erro ao buscar cotações")
   return res.json()
 }

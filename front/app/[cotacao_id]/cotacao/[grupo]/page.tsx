@@ -62,7 +62,7 @@ export default function Grupo() {
   const enviarPrecoMutation = useMutation({
     mutationFn: async ({ familia, preco }: { familia: string; preco: number }) => {
       const res = await fetch(
-        `http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}/itens/preco?preco=${preco}&familia=${familia}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/cotacoes/${cotacao_id}/itens/preco?preco=${preco}&familia=${familia}`,
         { method: "PUT" }
       );
       if (!res.ok) throw new Error("Erro ao enviar preço");
@@ -81,7 +81,7 @@ export default function Grupo() {
     queryKey: ["cotacao-itens", cotacao_id, offset, limit],
     queryFn: async () => {
       const res = await fetch(
-        `http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}/itens?offset=${offset}&limit=${limit}`
+        `${process.env.NEXT_PUBLIC_API_URL}/cotacoes/${cotacao_id}/itens?offset=${offset}&limit=${limit}`
       );
       if (!res.ok) throw new Error("Erro ao buscar itens");
       return res.json();

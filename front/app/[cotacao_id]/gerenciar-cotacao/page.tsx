@@ -23,7 +23,7 @@ export default function GerenciarCotacao() {
   const { data, isPending, error } = useQuery<Cotacao>({
     queryKey: ["cotacao", cotacao_id],
     queryFn: async () => {
-      const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacao/${cotacao_id}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacao/${cotacao_id}`);
       if (!res.ok) throw new Error("Erro ao buscar dados");
       return res.json();
     },
@@ -31,7 +31,7 @@ export default function GerenciarCotacao() {
 
   const finalizarMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}/finalizar`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacoes/${cotacao_id}/finalizar`, {
         method: "PUT",
       });
       if (!res.ok) throw new Error("Erro ao finalizar cotação");
@@ -48,7 +48,7 @@ export default function GerenciarCotacao() {
   const gerarMutation = useMutation({
       mutationFn: async () => {
         const res = await fetch(
-          `http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}/gerar-arquivo`,
+          `${process.env.NEXT_PUBLIC_API_URL}/cotacoes/${cotacao_id}/gerar-arquivo`,
           { method: "GET" }
         );
         if (!res.ok) throw new Error("Erro ao gerar arquivo");
@@ -77,7 +77,7 @@ export default function GerenciarCotacao() {
     });
   const deletarMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacoes/${cotacao_id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Erro ao deletar cotação");

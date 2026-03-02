@@ -18,7 +18,7 @@ export default function Cotacao() {
   const { data: totalData, isPending: loadingTotal, error: errorTotal } = useQuery<{ total_itens: number }>({
     queryKey: ["cotacao-total-itens", cotacao_id],
     queryFn: async () => {
-      const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacoes/${cotacao_id}/itens/total`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacoes/${cotacao_id}/itens/total`);
       if (!res.ok) throw new Error("Erro ao buscar total de itens");
       return res.json();
     }
@@ -28,7 +28,7 @@ export default function Cotacao() {
   const { data: detalhesData, isPending: loadingDetalhes, error: errorDetalhes } = useQuery<CotacaoDetalhes>({
     queryKey: ["cotacao-detalhes", cotacao_id],
     queryFn: async () => {
-      const res = await fetch(`http://servicos-coletorapi.eu8tjo.easypanel.host:8000/cotacao/${cotacao_id}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacao/${cotacao_id}`);
       if (!res.ok) throw new Error("Erro ao buscar detalhes da cotação");
       return res.json();
     }
