@@ -24,7 +24,7 @@ export default function Home() {
     refetchInterval: 1000 * 60
   })
   if (isLoading) return <div>Carregando...</div>
-  if (error) return <div>Erro ao carregar</div>
+  if (error) return <div>Erro ao carregar.</div>
   return (
    <div>
     <main className="flex flex-col items-center jus p-5 gap-5 text-white">
