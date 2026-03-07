@@ -11,13 +11,9 @@ type Cotacao = {
   status?: string
 }
 
-const URL = process.env.NEXT_PUBLIC_API_URL
-
-console.log(URL)
-console.log("ENV:", process.env.NEXT_PUBLIC_API_URL)
 
 async function fetchCotacoes():Promise<Cotacao[]> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacoes`)
+  const res = await fetch("/api/cotacoes")
   if(!res.ok) throw new Error("Erro ao buscar cotações")
   return res.json()
 }
