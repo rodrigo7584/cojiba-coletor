@@ -63,10 +63,6 @@ class APIClient:
         
         response = requests.post(self.login_url, json=payload, timeout=10)
         # response.raise_for_status()
-        
-        # if response.status_code != 200:
-        #   print("Erro API:", response.status_code, response.text)
-        #   return None
 
         if response.status_code != 200:
           raise Exception("Falha ao validar token")
@@ -86,10 +82,6 @@ class APIClient:
         }
         response = requests.post(self.refresh_url, json=payload, timeout=10)
 
-        # response.raise_for_status()
-        # if response.status_code != 200:
-        #   print("Erro API:", response.status_code, response.text)
-        #   return None
         if response.status_code != 200:
           raise Exception("Falha ao validar token")
 
@@ -114,26 +106,6 @@ class APIClient:
         headers["Authorization"] = self.get_token()
         return requests.request(method, url, headers=headers, timeout=10, **kwargs)
 client = APIClient()
-
-# def buscar_ean_por_familia(client, seq_familia):
-#     url = f"https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/CadastrosEstruturaisAPI/api/v1/Produto/produto-codigo?SeqFamilia={seq_familia}&TipoCodigo=E&QtdEmbalagem=1&PageSize=100"
-#     response = client.request("GET", url)
-#     if response.status_code != 200:
-#       print("Erro API:", response.status_code, response.text)
-#       return None
-#     data = response.json()
-
-#     # Se não retornou nada, exclui
-#     if not data.get("items"):
-#         return None
-
-#     # Percorre os itens e procura o primeiro com indUtilVenda = "S"
-#     for item in data["items"]:
-#         if item.get("indUtilVenda") == "S":
-#             return item.get("codigoAcesso")
-
-#     # Se nenhum item válido encontrado, exclui
-#     return None
 
 def buscar_ean_por_produto(client, seq_produto):
     url = f"https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/CadastrosEstruturaisAPI/api/v1/Produto/produto-codigo?SeqProduto={seq_produto}&TipoCodigo=E&QtdEmbalagem=1&PageSize=100"
@@ -208,8 +180,8 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
 
           try:
               ean = buscar_ean_por_produto(client, codigo_produto)
+
               #print(codigo_produto, ean)
-              
               if ean and len(ean) not in (13, 8):
                 cur.execute("""
                         INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
@@ -231,7 +203,194 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
         conn.close()
 
         return {"message": "Cotação e itens salvos no banco com sucesso!", "id": cotacao_id}
-        # return {"linhas_processadas": len(df)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cotacoes")
+def listar_cotacoes():
+    """Lista todas as cotações"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, status, data_criacao FROM cotacoes ORDER BY id DESC")
+        cotacoes = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": c[0], "nome": c[1], "status": c[2], "data_criacao": c[3]} for c in cotacoes]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cotacao/{cotacao_id}")
+def info_cotacao(cotacao_id: int):
+    """Lista dados da cotação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, status, data_criacao FROM cotacoes WHERE id = %s",(cotacao_id,))
+        cotacao = cur.fetchone()
+        cur.close()
+        conn.close()
+        return {"id": cotacao[0], "nome": cotacao[1], "status": cotacao[2], "data_criacao": cotacao[3]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/cotacoes/finalizadas")
+def listar_cotacoes_finalizadas():
+    """Mostra as cotações finalizadas para gerar o arquivo de importação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, status, data_criacao FROM cotacoes WHERE status = %s ORDER BY id DESC", ("F",))
+        cotacoes = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": c[0], "nome": c[1], "status": c[2], "data_criacao": c[3]} for c in cotacoes]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cotacoes/{cotacao_id}/itens")
+def listar_itens_cotacao(
+    cotacao_id: int,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200)
+):
+    """Lista itens da cotação com paginação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""SELECT id, ean, familia, nome_produto, preco, promocional FROM itens_cotacao WHERE cotacao_id = %s ORDER BY id OFFSET %s LIMIT %s""", (cotacao_id, offset, limit))
+        itens = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [
+            {"id": i[0], "ean": i[1], "familia": i[2],
+             "nome_produto": i[3], "preco": i[4], "promocional": i[5]}
+            for i in itens
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cotacoes/{cotacao_id}/itens/total")
+def contar_itens_cotacao(cotacao_id: int):
+    """Retorna o total de itens da cotação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM itens_cotacao WHERE cotacao_id = %s", (cotacao_id,))
+        total = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return {"total_itens": total}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi import HTTPException
+import math
+
+@app.put("/cotacoes/{cotacao_id}/itens/preco")
+def atualizar_preco_item(cotacao_id: int, familia: int, preco: float, promocional: str = "N"):
+    """Atualiza preço da cotação """
+    try:
+        # Validação do preço
+        if math.isnan(preco) or math.isinf(preco) or preco < 0:
+            raise HTTPException(status_code=400, detail="Preço inválido")
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE itens_cotacao SET preco = %s, promocional = %s WHERE cotacao_id = %s AND familia = %s",
+            (preco, promocional, cotacao_id, familia)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {
+            "message": f"Preço do item {familia} atualizado com sucesso",
+            "cotacao": cotacao_id,
+            "preco": f"{preco:.2f}",
+            "promocional": promocional
+        }
+    except HTTPException:
+        # Repassa o erro de validação
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/cotacoes/{cotacao_id}/familia/{familia_id}")
+def detalhes_cotacao(cotacao_id: int, familia_id: str):
+    """recupera um item da cotacao"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, ean, familia, nome_produto, preco, promocional FROM itens_cotacao WHERE cotacao_id = %s AND familia = %s", (cotacao_id,familia_id))
+        itens = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": i[0], "ean": i[1], "familia": i[2], "nome_produto": i[3], "preco": i[4], "promocional": i[5]} for i in itens]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/cotacoes/{cotacao_id}/finalizar")
+def finalizar_cotacao(cotacao_id: int):
+    """Finaliza uma cotação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("UPDATE cotacoes SET status = %s WHERE id = %s", ("F", cotacao_id))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"message": f"Cotação {cotacao_id} finalizada com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/cotacoes/{cotacao_id}")
+def excluir_cotacao(cotacao_id: int):
+    """Exclui uma cotação"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM cotacoes WHERE id = %s", (cotacao_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"message": f"Cotação {cotacao_id} excluída com sucesso"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/cotacoes/{cotacao_id}/gerar-arquivo")
+def gerar_arquivo_cotacao(cotacao_id: int):
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT ean, preco
+            FROM itens_cotacao
+            WHERE cotacao_id = %s AND preco > 0
+            ORDER BY id
+        """, (cotacao_id,))
+        itens = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        linhas = []
+        for ean, preco in itens:
+            ean_str = str(ean).zfill(13)
+            preco_centavos = int(round(preco * 100))
+            preco_str = str(preco_centavos).zfill(7)
+            linha = "0000000" + ean_str + preco_str
+            linhas.append(linha)
+
+        # cria arquivo temporário
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8") as tmpfile:
+            tmpfile.write("\n".join(linhas))
+            caminho = tmpfile.name
+
+        return FileResponse(caminho, media_type="text/plain", filename=f"cotacao_{cotacao_id}.txt")
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
