@@ -1,6 +1,6 @@
 "use client"
 import { Button } from "@/components/ui/button";
-import { CirclePlus, FileCogIcon, FileUpIcon } from "lucide-react";
+import { CirclePlus, FileCogIcon, FilePenLine, FileUpIcon } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,7 +24,11 @@ export default function Home() {
     staleTime: 1000 * 60,
     refetchInterval: 1000 * 60
   })
-  if (isLoading) return <div>Carregando...</div>
+  if (isLoading) 
+    return 
+    <div className="flex flex-col items-center jus p-5 gap-5 text-white">
+      Carregando...
+    </div>
   if (error) return <div>Erro ao carregar.</div>
   return (
    <div>
@@ -50,17 +54,22 @@ export default function Home() {
                 <TableCell className="w-25">{cotacao.nome}</TableCell>
                 <TableCell className="w-25 text-center">{new Date(cotacao.data_criacao).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit"})}</TableCell>
                 <TableCell className="flex flex-row justify-center gap-2">
-                  {cotacao?.status === "F" && (
+                  
                   <Button asChild>
                     <Link href={`/${cotacao.id}/gerenciar-cotacao`}>
-                      <FileCogIcon/> Gerenciar
+                       {cotacao?.status === "F" && ( 
+                        <FileCogIcon/> 
+                       )} 
+                       {cotacao?.status === "A" && ( 
+                        <FilePenLine/>
+                       )} 
                     </Link>
                   </Button>
-                  )}
+                  
                   {cotacao?.status === "A" && (
                   <Button asChild>
                     <Link href={`/${cotacao.id}/cotacao`}>
-                      <FileUpIcon/> Cotar
+                      <FileUpIcon/> 
                     </Link>
                   </Button>
                   )}

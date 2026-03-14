@@ -18,7 +18,7 @@ export default function Criar() {
       formData.append("arquivo", arquivo); // campo esperado no FastAPI
       formData.append("nome", nome);       // campo esperado no FastAPI
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cotacoes`, {
+      const response = await fetch("/api/cotacoes", {
         method: "POST",
         body: formData,
       });
