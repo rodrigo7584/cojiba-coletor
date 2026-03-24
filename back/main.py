@@ -122,7 +122,7 @@ def buscar_ean_por_produto(client, seq_produto):
     # Percorre os itens e procura o primeiro com indUtilVenda = "S"
     for item in data["items"]:
         if item.get("indUtilVenda") == "S":
-            print( seq_produto, item.get("codigoAcesso"))
+            # print( seq_produto, item.get("codigoAcesso"))
             return item.get("codigoAcesso")
 
     # Se nenhum item válido encontrado, exclui
@@ -177,12 +177,15 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
 
         for _, row in df.iterrows():
           codigo_produto = row["CodigoProduto"]
+          codigo_familia = row["CodigoFamilia"]
+          produto_familia = row["ProdutoFamilia"]
 
           try:
               ean = buscar_ean_por_produto(client, codigo_produto)
 
-              #print(codigo_produto, ean)
-              if ean and len(ean) not in (13, 8):
+              
+              if ean and len(str(ean)) in (13, 8):
+                print(codigo_produto, ean)
                 cur.execute("""
                         INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
                         VALUES (%s, %s, %s, %s, %s, %s)
@@ -396,4 +399,4 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.7", "mensagem": "API atualizadas"}
+    return {"versao": "1.0.8", "mensagem": "API atualizadas"}
