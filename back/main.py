@@ -128,7 +128,7 @@ def buscar_ean_por_produto(client, seq_produto):
     # Se nenhum item válido encontrado, exclui
     return None
 
-@app.post("/cotacoes/")
+@app.post("/cotacoes")
 async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
     try:
         client.get_token()
