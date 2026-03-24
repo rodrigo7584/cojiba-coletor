@@ -60,7 +60,7 @@ export default function GerenciarCotacao() {
         // força download
         const a = document.createElement("a");
         a.href = url;
-        a.download = `cotacao-${cotacao_id}.csv`; // ou .pdf dependendo do backend
+        a.download = `cotacao-${cotacao_id}.txt`; // ou .pdf dependendo do backend
         document.body.appendChild(a);
         a.click();
         a.remove();
