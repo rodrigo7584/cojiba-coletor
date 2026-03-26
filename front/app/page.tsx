@@ -11,7 +11,6 @@ type Cotacao = {
   status?: string
 }
 
-
 async function fetchCotacoes():Promise<Cotacao[]> {
   const res = await fetch("/api/cotacoes")
   if(!res.ok) throw new Error("Erro ao buscar cotações")

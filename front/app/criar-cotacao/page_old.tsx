@@ -23,19 +23,10 @@ export default function Criar() {
         body: formData,
       });
 
-      let data;
-
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-
       if (!response.ok) {
-        throw new Error(data?.detail || "Erro ao criar cotação");
+        throw new Error("Erro ao criar cotação");
       }
-
-      return data;
+      return response.json();
     },
     onSuccess: (data) => {
       console.log("Cotação criada:", data);
@@ -48,7 +39,7 @@ export default function Criar() {
     },
     onError: (error) => {
       console.error(error);
-      toast.error(error.message, { position: "top-center" })
+      toast.error(error.message || "Erro ao criar cotação", { position: "top-center" })
     },
   });
 

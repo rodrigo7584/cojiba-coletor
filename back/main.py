@@ -127,9 +127,10 @@ def buscar_ean_por_produto(client, seq_produto):
 
     # Se nenhum item válido encontrado, exclui
     return None
-
+ 
 @app.post("/cotacoes")
 async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
+    
     try:
         client.get_token()
     except Exception:
@@ -140,54 +141,154 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
 
     try:
         contents = await arquivo.read()
-        df = pd.read_csv(io.BytesIO(contents), sep=";", encoding="latin1", header=None)
 
-        # remover linhas completamente vazias
-        df = df.dropna(how="all")
+        # =========================
+        # Decodificar arquivo
+        # =========================
+        encodings = ["utf-8", "utf-8-sig", "latin1"]
+        for enc in encodings:
+            try:
+                texto = contents.decode(enc)
+                break
+            except Exception:
+                continue
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Não foi possível ler o arquivo. Encoding inválido."
+            )
 
-        # remover linhas que não possuem as 4 colunas necessárias
-        df = df.dropna(subset=[0,1,2,3])
+        # =========================
+        # Filtrar linhas válidas (4 colunas)
+        # =========================
+        linhas = texto.splitlines()
 
-        # Se a primeira célula da primeira coluna for texto, removemos a linha (cabeçalho)
-        if not df.empty and isinstance(df.iloc[0, 0], str):
-            # Se for texto e não número, consideramos cabeçalho
-            if not df.iloc[0, 0].isdigit():
-                df = df.drop(index=0).reset_index(drop=True)
+        linhas_validas = []
+        for linha in linhas:
+            if linha.count(";") == 3:  # 4 colunas
+                linhas_validas.append(linha)
 
-        # Renomear colunas para padronizar
-        df.columns = ["CodigoProduto",  "ProdutoFamilia", "CodigoFamilia", "Embalagem"]
+        if not linhas_validas:
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivo não possui linhas válidas."
+            )
 
-        # Limpeza básica
-        df["CodigoFamilia"] = df["CodigoFamilia"].fillna("").astype(str).str.replace(".0", "", regex=False)
-        df["CodigoProduto"] = df["CodigoProduto"].fillna("").astype(str).str.replace(".0", "", regex=False)
+        # =========================
+        # Separar header e dados
+        # =========================
+        header = linhas_validas[0]
+        dados = linhas_validas[1:]
+
+        colunas_esperadas = [
+            "Código Produto",
+            "Produto : Família",
+            "Código Família",
+            "Embalagem Unitária"
+        ]
+
+        colunas_recebidas = [c.strip() for c in header.split(";")]
+
+        if colunas_recebidas != colunas_esperadas:
+            raise HTTPException(
+                status_code=400,
+                detail="Cabeçalho inválido."
+            )
+
+        # =========================
+        # Criar DataFrame limpo
+        # =========================
+        import pandas as pd
+        import io
+
+        csv_limpo = "\n".join(dados)
+
+        df = pd.read_csv(
+            io.StringIO(csv_limpo),
+            sep=";",
+            header=None
+        )
+
+        df.columns = [
+            "CodigoProduto",
+            "ProdutoFamilia",
+            "CodigoFamilia",
+            "Embalagem"
+        ]
+
+        # =========================
+        # Limpeza
+        # =========================
+        df["CodigoProduto"] = (
+            df["CodigoProduto"]
+            .fillna("")
+            .astype(str)
+            .str.replace(".0", "", regex=False)
+            .str.strip()
+        )
+
+        df["CodigoFamilia"] = (
+            df["CodigoFamilia"]
+            .fillna("")
+            .astype(str)
+            .str.replace(".0", "", regex=False)
+            .str.strip()
+        )
+
         df["ProdutoFamilia"] = df["ProdutoFamilia"].fillna("").astype(str)
-        df["Embalagem"] = df["Embalagem"].fillna("").astype(str).str.strip()
 
-        # Manter apenas linhas onde Embalagem é "UN 1"
+        df["Embalagem"] = (
+            df["Embalagem"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+
+        # =========================
+        # Filtros
+        # =========================
+        df = df[
+            df["CodigoProduto"].str.fullmatch(r"\d+") &
+            df["CodigoFamilia"].str.fullmatch(r"\d+")
+        ]
+
         df = df[df["Embalagem"] == "UN 1"]
 
-        # Remover duplicados por família
         df = df.drop_duplicates(subset=["CodigoFamilia"], keep="first")
-              
-         # Inserção no banco
+
+        if df.empty:
+            raise HTTPException(
+                status_code=400,
+                detail="Nenhum item válido encontrado no CSV."
+            )
+
+        # =========================
+        # Banco
+        # =========================
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("INSERT INTO cotacoes (nome, status) VALUES (%s, %s) RETURNING id", (nome, "A"))
+
+        cur.execute(
+            "INSERT INTO cotacoes (nome, status) VALUES (%s, %s) RETURNING id",
+            (nome, "A")
+        )
         cotacao_id = cur.fetchone()[0]
 
         for _, row in df.iterrows():
-          codigo_produto = row["CodigoProduto"]
-          codigo_familia = row["CodigoFamilia"]
-          produto_familia = row["ProdutoFamilia"]
+            codigo_produto = row["CodigoProduto"]
+            codigo_familia = row["CodigoFamilia"]
+            produto_familia = row["ProdutoFamilia"]
 
-          try:
-              ean = buscar_ean_por_produto(client, codigo_produto)
+            try:
+                ean = buscar_ean_por_produto(client, codigo_produto)
 
-              
-              if ean and len(str(ean)) in (13, 8):
-                print(codigo_produto, ean)
-                cur.execute("""
-                        INSERT INTO itens_cotacao (cotacao_id, ean, familia, nome_produto, preco, promocional)
+                if ean and len(str(ean)) in (13, 8):
+                    print(codigo_produto, ean)
+
+                    cur.execute("""
+                        INSERT INTO itens_cotacao 
+                        (cotacao_id, ean, familia, nome_produto, preco, promocional)
                         VALUES (%s, %s, %s, %s, %s, %s)
                     """, (
                         cotacao_id,
@@ -197,17 +298,30 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
                         0,
                         "N"
                     ))
-                
-          except Exception as e:
-              print("Erro no produto", codigo_produto, e)
+
+            except Exception as e:
+                print("Erro no produto", codigo_produto, e)
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return {"message": "Cotação e itens salvos no banco com sucesso!", "id": cotacao_id}
+        return {
+            "message": "Cotação e itens salvos com sucesso!",
+            "id": cotacao_id,
+            "linhas_validas": len(df),
+            "linhas_descartadas": len(linhas) - len(linhas_validas)
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail="Erro interno no servidor"
+        )
 
 @app.get("/cotacoes")
 def listar_cotacoes():
@@ -399,4 +513,4 @@ def gerar_arquivo_cotacao(cotacao_id: int):
 
 @app.get("/versao")
 def versao():
-    return {"versao": "1.0.11", "mensagem": "API atualizadas"}
+    return {"versao": "1.0.12", "mensagem": "API atualizadas"}
