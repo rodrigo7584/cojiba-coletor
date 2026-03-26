@@ -3,6 +3,8 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Query
 from fastapi import HTTPException 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 import math
 import psycopg2
 import pandas as pd
@@ -36,6 +38,14 @@ DB_CONFIG = {
 def get_connection():
     return psycopg2.connect(**DB_CONFIG)
 
+_token_cache = {
+    "access_token": None,
+    "refresh_token": None,
+    "expires_at": 0,
+    "token_type": "Bearer"
+}
+_token_lock = Lock()
+
 class APIClient:
     def __init__(self):
         # Credenciais vindas de variáveis de ambiente
@@ -47,14 +57,9 @@ class APIClient:
         self.login_url = "https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/api/v1/auth/login"
         self.refresh_url = "https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/api/v1/auth/refresh-token"
 
-        # Tokens
-        self.access_token = None
-        self.refresh_token = None
-        self.token_type = None
-        self.expires_at = None  # timestamp de expiração
-
     def login(self):
-        
+        global _token_cache
+
         payload = {
             "company": self.company,
             "username": self.username,
@@ -62,50 +67,55 @@ class APIClient:
         }
         
         response = requests.post(self.login_url, json=payload, timeout=10)
-        # response.raise_for_status()
 
         if response.status_code != 200:
           raise Exception("Falha ao validar token")
 
         data = response.json()
 
-        self.access_token = data["access_token"]
-        self.refresh_token = data["refresh_token"]
-        self.token_type = data["token_type"]
-        # Guardar o momento em que expira
-        self.expires_at = time.time() + data["expires_in"]
+        _token_cache["access_token"] = data["access_token"]
+        _token_cache["refresh_token"] = data["refresh_token"]
+        _token_cache["expires_at"] = time.time() + data["expires_in"]
+        _token_cache["token_type"] = data["token_type"]
 
     def refresh(self):
+        global _token_cache
+
         payload = {
-            "refresh_token": self.refresh_token,
+            "refresh_token": _token_cache["refresh_token"],
             "grant_type": "refresh_token"
         }
         response = requests.post(self.refresh_url, json=payload, timeout=10)
 
         if response.status_code != 200:
-          raise Exception("Falha ao validar token")
+            # se falhar refresh → faz login novo
+            self.login()
+            return
 
         data = response.json()
 
-        self.access_token = data["access_token"]
-        # Algumas APIs devolvem um novo refresh_token, outras não
-        self.refresh_token = data.get("refresh_token", self.refresh_token)
-        self.token_type = data["token_type"]
-        self.expires_at = time.time() + data["expires_in"]
+        _token_cache["access_token"] = data["access_token"]
+        _token_cache["refresh_token"] = data.get("refresh_token", _token_cache["refresh_token"])
+        _token_cache["expires_at"] = time.time() + data["expires_in"]
+        _token_cache["token_type"] = data["token_type"]
 
     def get_token(self):
         # Se não tem token ou já expirou, renova
-        if not self.access_token:
-            self.login()
-        elif time.time() >= self.expires_at:
-            self.refresh()
-        return f"{self.token_type} {self.access_token}"
+        global _token_cache
+
+        with _token_lock:
+            if not _token_cache["access_token"]:
+                self.login()
+            elif time.time() >= _token_cache["expires_at"]:
+                self.refresh()
+
+            return f'{_token_cache["token_type"]} {_token_cache["access_token"]}'
 
     def request(self, method, url, **kwargs):
         headers = kwargs.pop("headers", {})
         headers["Authorization"] = self.get_token()
         return requests.request(method, url, headers=headers, timeout=10, **kwargs)
-client = APIClient()
+# client = APIClient()
 
 def buscar_ean_por_produto(client, seq_produto):
     url = f"https://irmaosmarafao171429.consinco.cloudtotvs.com.br:8343/CadastrosEstruturaisAPI/api/v1/Produto/produto-codigo?SeqProduto={seq_produto}&TipoCodigo=E&QtdEmbalagem=1&PageSize=100"
@@ -127,10 +137,26 @@ def buscar_ean_por_produto(client, seq_produto):
 
     # Se nenhum item válido encontrado, exclui
     return None
- 
+
+def processar_produto(row, client):
+    codigo_produto = row["CodigoProduto"]
+    codigo_familia = row["CodigoFamilia"]
+    produto_familia = row["ProdutoFamilia"]
+
+    try:
+        ean = buscar_ean_por_produto(client, codigo_produto)
+
+        if ean and len(str(ean)) in (13, 8):
+            return (codigo_produto, codigo_familia, produto_familia, ean)
+
+    except Exception as e:
+        print("Erro no produto", codigo_produto, e)
+
+    return None
+
 @app.post("/cotacoes")
 async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
-    
+    client = APIClient()
     try:
         client.get_token()
     except Exception:
@@ -198,8 +224,6 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
         # =========================
         # Criar DataFrame limpo
         # =========================
-        import pandas as pd
-        import io
 
         csv_limpo = "\n".join(dados)
 
@@ -275,32 +299,43 @@ async def criar_cotacao(nome: str = Form(...), arquivo: UploadFile = File(...)):
         )
         cotacao_id = cur.fetchone()[0]
 
-        for _, row in df.iterrows():
-            codigo_produto = row["CodigoProduto"]
-            codigo_familia = row["CodigoFamilia"]
-            produto_familia = row["ProdutoFamilia"]
+        # ======================
+        # PROCESSAMENTO PARALELO
+        # ======================
+        resultados = []
 
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [
+                executor.submit(processar_produto, row, client)
+                for _, row in df.iterrows()
+            ]
+
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    resultados.append(result)
+
+
+        # ======================
+        # INSERÇÃO NO BANCO
+        # ======================
+        for codigo_produto, codigo_familia, produto_familia, ean in resultados:
             try:
-                ean = buscar_ean_por_produto(client, codigo_produto)
-
-                if ean and len(str(ean)) in (13, 8):
-                    print(codigo_produto, ean)
-
-                    cur.execute("""
-                        INSERT INTO itens_cotacao 
-                        (cotacao_id, ean, familia, nome_produto, preco, promocional)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (
-                        cotacao_id,
-                        ean,
-                        codigo_familia,
-                        produto_familia,
-                        0,
-                        "N"
-                    ))
-
+                cur.execute("""
+                    INSERT INTO itens_cotacao 
+                    (cotacao_id, ean, familia, nome_produto, preco, promocional)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    cotacao_id,
+                    ean,
+                    codigo_familia,
+                    produto_familia,
+                    0,
+                    "N"
+                ))
             except Exception as e:
-                print("Erro no produto", codigo_produto, e)
+                print("Erro ao inserir no banco:", codigo_produto, e)
+
 
         conn.commit()
         cur.close()
