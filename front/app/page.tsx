@@ -16,6 +16,7 @@ async function fetchCotacoes():Promise<Cotacao[]> {
   if(!res.ok) throw new Error("Erro ao buscar cotações")
   return res.json()
 }
+
 export default function Home() {
   const { data, isLoading, error } = useQuery<Cotacao[]>({
     queryKey:["cotacoes"],
@@ -24,11 +25,17 @@ export default function Home() {
     refetchInterval: 1000 * 60
   })
   if (isLoading) 
-    return 
-    <div className="flex flex-col items-center jus p-5 gap-5 text-white">
-      Carregando...
-    </div>
-  if (error) return <div>Erro ao carregar.</div>
+    return (
+      <div className="text-lg font-bold flex flex-col items-center jus p-5 gap-5 text-white">
+        Carregando...
+      </div>
+    )
+  if (error) 
+    return (
+      <div className="text-lg font-bold flex flex-col items-center jus p-5 gap-5 text-white">
+        Erro ao carregar dados.
+      </div>
+    )
   return (
    <div>
     <main className="flex flex-col items-center jus p-5 gap-5 text-white">

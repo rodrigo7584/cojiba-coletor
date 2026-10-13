@@ -4,8 +4,11 @@ import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CircleArrowLeftIcon, CirclePlus, FileSpreadsheetIcon } from "lucide-react";
+import { CircleArrowLeftIcon, CirclePlus, CircleQuestionMarkIcon, FileSpreadsheetIcon } from "lucide-react";
 import Link from "next/link";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
 
 export default function Criar() {
   const [fileName, setFileName] = useState<string | null>(null);
@@ -87,7 +90,35 @@ export default function Criar() {
           </Link>
         </Button>
         <div className="flex flex-col items-center p-5 gap-5 text-white">
-          <h1 className="text-lg font-bold">Criar cotação</h1>
+          <div className="flex gap-1 items-center justify-center">
+            <h1 className="text-lg font-bold">Criar cotação</h1>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button>
+                  <CircleQuestionMarkIcon />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogTitle>Tutorial de geração do arquivo CSV</AlertDialogTitle>
+                <p>
+                  O relátorio gerado em análise abc de venda varejo com os filtros de produto e familia. 
+                </p>
+                <p>
+                  Selecione as colunas: <br/>
+                  <span className="font-semibold">Código Produto</span> <br/>
+                  <span className="font-semibold">Produto : Família</span> <br/>
+                  <span className="font-semibold">Código Família</span> <br/>
+                  <span className="font-semibold">Embalagem Unitária</span> <br/> 
+                  e salve em um arquivo CSV,
+                  geralmente é copiado uma linha com um <span className="font-semibold">valor total</span>, essa linha tem de ser deletada. 
+                 </p>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Fechar</AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+              
+            </AlertDialog>
+          </div>
           <Input
             placeholder="Digite o nome para a cotação"
             className="w-60"
